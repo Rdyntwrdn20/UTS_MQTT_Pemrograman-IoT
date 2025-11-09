@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Monitoring IoT</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      min-height: 100vh;
+      padding-bottom: 30px;
+    }
+
+    /* HEADER */
+    header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 25px 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      animation: slideDown 0.5s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    header h2 {
+      text-align: center;
+      font-size: 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+    }
+
+    .header-subtitle {
+      text-align: center;
+      color: #888;
+      font-size: 0.95rem;
+      margin-top: 5px;
+    }
+
+    /* MAIN CONTAINER */
+    main {
+      padding: 30px 20px;
+      max-width: 1400px;
+      margin: auto;
+    }
+
+    /* STATUS CARDS */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .status-card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      transition: transform 0.3s, box-shadow 0.3s;
+      animation: fadeIn 0.5s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .status-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+    }
+
+    .status-card.temp::before {
+      background: linear-gradient(90deg, #ff6b6b, #ee5a6f);
+    }
+
+    .status-card.humid::before {
+      background: linear-gradient(90deg, #4ecdc4, #44a8a0);
+    }
+
+    .status-card.lux::before {
+      background: linear-gradient(90deg, #ffd93d, #ffbe0b);
+    }
+
+    .status-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status-icon {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .status-label {
+      font-size: 0.85rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .status-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .status-unit {
+      font-size: 1rem;
+      color: #888;
+      font-weight: 400;
+    }
+
+    /* SECTION */
+    .section {
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      animation: fadeIn 0.7s ease;
+    }
+
+    .section-title {
+      font-size: 1.3rem;
+      color: #667eea;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* SUMMARY TABLE */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .summary-item {
+      background: linear-gradient(135deg, #f8f9ff 0%, #e8ecff 100%);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      transition: transform 0.3s;
+    }
+
+    .summary-item:hover {
+      transform: scale(1.05);
+    }
+
+    .summary-item-label {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .summary-item-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    /* CHART */
+    .chart-container {
+      background: linear-gradient(135deg, #f8f9ff 0%, #e8ecff 100%);
+      padding: 25px;
+      border-radius: 15px;
+      height: 450px;
+      position: relative;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* TABLE */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+      margin-top: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 15px;
+      text-align: center;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    tr:hover {
+      background: #f8f9ff;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* BADGES */
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .badge-temp {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge-humid {
+      background: #dbeafe;
+      color: #1e3a8a;
+    }
+
+    .badge-lux {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: white;
+      font-size: 0.9rem;
+      margin-top: 30px;
+    }
+
+    /* LOADING INDICATOR */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top: 3px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .refresh-indicator {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 10px 20px;
+      border-radius: 25px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 1000;
+    }
+
+    .refresh-indicator.active {
+      display: flex;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      header h2 {
+        font-size: 1.5rem;
+      }
+
+      .status-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="refresh-indicator" id="refreshIndicator">
+    <div class="loading"></div>
+    <span>Memuat data...</span>
+  </div>
+
+  <header>
+    <h2>🌡️ Dashboard Monitoring Data Sensor IoT</h2>
+    <p class="header-subtitle">Pemrograman IoT - UTS 2025</p>
+  </header>
+
+  <main>
+    <!-- STATUS CARDS -->
+    <div class="status-grid">
+      <div class="status-card temp" style="animation-delay: 0.1s;">
+        <div class="status-icon">🌡️</div>
+        <div class="status-label">Suhu Saat Ini</div>
+        <div class="status-value">
+          <span id="currentTemp">--</span>
+          <span class="status-unit">°C</span>
+        </div>
+      </div>
+
+      <div class="status-card humid" style="animation-delay: 0.2s;">
+        <div class="status-icon">💧</div>
+        <div class="status-label">Kelembaban</div>
+        <div class="status-value">
+          <span id="currentHumid">--</span>
+          <span class="status-unit">%</span>
+        </div>
+      </div>
+
+      <div class="status-card lux" style="animation-delay: 0.3s;">
+        <div class="status-icon">💡</div>
+        <div class="status-label">Intensitas Cahaya</div>
+        <div class="status-value">
+          <span id="currentLux">--</span>
+          <span class="status-unit">Lux</span>
+        </div>
+      </div>
+
+      <div class="status-card" style="animation-delay: 0.4s;">
+        <div class="status-icon">📊</div>
+        <div class="status-label">Total Data</div>
+        <div class="status-value">
+          <span id="totalData">--</span>
+          <span class="status-unit">records</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RINGKASAN STATISTIK -->
+    <div class="section">
+      <h3 class="section-title">
+        <span>📈</span>
+        Ringkasan Statistik Sensor
+      </h3>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-item-label">🔥 Suhu Max</div>
+          <div class="summary-item-value"><span id="suhuMax">--</span>°C</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-item-label">❄️ Suhu Min</div>
+          <div class="summary-item-value"><span id="suhuMin">--</span>°C</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-item-label">📊 Suhu Rata²</div>
+          <div class="summary-item-value"><span id="suhuAvg">--</span>°C</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-item-label">💧 Humid Max</div>
+          <div class="summary-item-value"><span id="humidMax">--</span>%</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-item-label">💨 Humid Min</div>
+          <div class="summary-item-value"><span id="humidMin">--</span>%</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-item-label">📊 Humid Rata²</div>
+          <div class="summary-item-value"><span id="humidAvg">--</span>%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRAFIK -->
+    <div class="section">
+      <h3 class="section-title">
+        <span>📉</span>
+        Grafik Suhu & Kelembaban Real-Time
+      </h3>
+      <div class="chart-container">
+        <canvas id="chartSuhu"></canvas>
+      </div>
+    </div>
+
+    <!-- RIWAYAT DATA -->
+    <div class="section">
+      <h3 class="section-title">
+        <span>📋</span>
+        Riwayat Data Sensor
+        <span class="badge badge-temp" id="dataCount" style="margin-left: auto;">0 data</span>
+      </h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Timestamp</th>
+              <th>Suhu (°C)</th>
+              <th>Humidity (%)</th>
+              <th>Lux</th>
+            </tr>
+          </thead>
+          <tbody id="dataBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    © 2025 Dashboard IoT UTS - Pemrograman IoT | Auto-refresh setiap 5 detik ⚡
+  </footer>
+
+  <script>
+    let chartInstance = null;
+
+    async function loadData() {
+      const indicator = document.getElementById('refreshIndicator');
+      indicator.classList.add('active');
+
+      try {
+        // Fetch summary & data
+        const resSummary = await fetch("/api/summary");
+        const summary = await resSummary.json();
+
+        const resData = await fetch("/api/data");
+        const data = await resData.json();
+
+        // Update status cards
+        if (data.length > 0) {
+          const latest = data[0];
+          document.getElementById('currentTemp').textContent = latest.suhu ?? '--';
+          document.getElementById('currentHumid').textContent = latest.humidity ?? '--';
+          document.getElementById('currentLux').textContent = latest.lux ?? '--';
+          document.getElementById('totalData').textContent = data.length;
+        }
+
+        // Update summary statistics
+        document.getElementById('suhuMax').textContent = summary.suhu_max ?? '--';
+        document.getElementById('suhuMin').textContent = summary.suhu_min ?? '--';
+        document.getElementById('suhuAvg').textContent = summary.suhu_avg ?? '--';
+        document.getElementById('humidMax').textContent = summary.humid_max ?? '--';
+        document.getElementById('humidMin').textContent = summary.humid_min ?? '--';
+        document.getElementById('humidAvg').textContent = summary.humid_avg ?? '--';
+
+        // Prepare chart data
+        const labels = data.map(d => d.timestamp.split(" ")[1]);
+        const suhu = data.map(d => d.suhu);
+        const humid = data.map(d => d.humidity);
+
+        // Destroy old chart
+        if (chartInstance) chartInstance.destroy();
+
+        // Create new chart
+        const ctx = document.getElementById("chartSuhu").getContext("2d");
+        
+        // Create gradients
+        const gradientTemp = ctx.createLinearGradient(0, 0, 0, 400);
+        gradientTemp.addColorStop(0, 'rgba(255, 107, 107, 0.5)');
+        gradientTemp.addColorStop(1, 'rgba(255, 107, 107, 0.05)');
+
+        const gradientHumid = ctx.createLinearGradient(0, 0, 0, 400);
+        gradientHumid.addColorStop(0, 'rgba(78, 205, 196, 0.5)');
+        gradientHumid.addColorStop(1, 'rgba(78, 205, 196, 0.05)');
+
+        chartInstance = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels.reverse(),
+            datasets: [
+              {
+                label: "Suhu (°C)",
+                data: suhu.reverse(),
+                borderColor: "#ff6b6b",
+                backgroundColor: gradientTemp,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: "#ff6b6b",
+                pointBorderColor: "#fff",
+                pointBorderWidth: 2,
+                pointHoverRadius: 7,
+                borderWidth: 3
+              },
+              {
+                label: "Kelembapan (%)",
+                data: humid.reverse(),
+                borderColor: "#4ecdc4",
+                backgroundColor: gradientHumid,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: "#4ecdc4",
+                pointBorderColor: "#fff",
+                pointBorderWidth: 2,
+                pointHoverRadius: 7,
+                borderWidth: 3
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { 
+                beginAtZero: true,
+                grid: {
+                  color: 'rgba(102, 126, 234, 0.1)'
+                },
+                ticks: {
+                  font: {
+                    family: 'Poppins',
+                    size: 12
+                  }
+                }
+              },
+              x: { 
+                ticks: { 
+                  maxTicksLimit: 10,
+                  font: {
+                    family: 'Poppins',
+                    size: 11
+                  }
+                },
+                grid: {
+                  display: false
+                }
+              }
+            },
+            plugins: {
+              legend: { 
+                position: 'bottom',
+                labels: {
+                  font: {
+                    family: 'Poppins',
+                    size: 13,
+                    weight: '500'
+                  },
+                  padding: 20,
+                  usePointStyle: true
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleFont: {
+                  family: 'Poppins',
+                  size: 13,
+                  weight: '600'
+                },
+                bodyFont: {
+                  family: 'Poppins',
+                  size: 12
+                },
+                padding: 12,
+                cornerRadius: 8
+              }
+            }
+          }
+        });
+
+        // Update data table
+        const body = document.getElementById("dataBody");
+        body.innerHTML = data.map(d => `
+          <tr>
+            <td><strong>#${d.id}</strong></td>
+            <td>${d.timestamp}</td>
+            <td><span class="badge badge-temp">${d.suhu}°C</span></td>
+            <td><span class="badge badge-humid">${d.humidity}%</span></td>
+            <td><span class="badge badge-lux">${d.lux} Lux</span></td>
+          </tr>
+        `).join('');
+
+        document.getElementById('dataCount').textContent = `${data.length} data`;
+
+      } catch (err) {
+        console.error("Gagal memuat data:", err);
+      } finally {
+        setTimeout(() => {
+          indicator.classList.remove('active');
+        }, 500);
+      }
+    }
+
+    // Auto refresh every 5 seconds
+    loadData();
+    setInterval(loadData, 5000);
+  </script>
+</body>
+</html>
