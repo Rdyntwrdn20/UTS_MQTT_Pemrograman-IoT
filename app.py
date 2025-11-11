@@ -1,8 +1,8 @@
 # ==============================================================
 # BACKEND FLASK - SISTEM MONITORING DATA SENSOR (UTS)
-# Menggunakan MQTT (test.mosquitto.org) + MySQL Database
+# Menggunakan MQTT (broker.hivemq.com) + MySQL Database
 # ==============================================================
-from flask import Flask, jsonify, render_template, redirect, url_for
+from flask import Flask, jsonify, render_template, redirect, url_for, Response
 import paho.mqtt.client as mqtt
 import mysql.connector
 import threading
@@ -18,10 +18,10 @@ app = Flask(__name__)
 # 2️⃣ DATABASE SETUP (MySQL)
 # --------------------------------------------------------------
 db_config = {
-    'host': 'localhost',       # ganti kalau MySQL-mu pakai IP lain
-    'user': 'root',            # ganti sesuai user MySQL kamu
-    'password': '',            # isi jika MySQL kamu pakai password
-    'database': 'uts_sensor'   # nama database di HeidiSQL
+    'host': 'localhost',
+    'user': 'root',
+    'password': '',
+    'database': 'uts_sensor'
 }
 
 def init_db():
@@ -32,7 +32,7 @@ def init_db():
                     suhu FLOAT,
                     humidity FLOAT,
                     lux FLOAT,
-                    timestamp VARCHAR(50)
+                    timestamp DATETIME
                 )''')
     conn.commit()
     conn.close()
@@ -44,10 +44,10 @@ init_db()
 # --------------------------------------------------------------
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print("✅ Connected to MQTT Broker (test.mosquitto.org)")
-        client.subscribe("sensor/data")
+        print("Connected to MQTT Broker (broker.hivemq.com)")
+        client.subscribe("sensor/ridayanti/data")
     else:
-        print("❌ Failed to connect, return code", rc)
+        print("Failed to connect, return code", rc)
 
 def on_message(client, userdata, msg):
     try:
@@ -62,28 +62,26 @@ def on_message(client, userdata, msg):
             suhu = float(data["suhu"])
             humidity = float(data["humidity"])
             lux = float(data["lux"])
-        elif "data" in data and "temp" in data["data"]:
-            suhu = float(data["data"]["temp"])
-            humidity = 0
-            lux = 0
         else:
-            print("⚠️ Format data tidak dikenali, dilewati.")
+            print("Format data tidak dikenali, dilewati.")
             return
 
-        waktu = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        waktu = datetime.now()
 
-        # --- Simpan ke database MySQL ---
+        # --- Simpan ke database ---
         conn = mysql.connector.connect(**db_config)
         cur = conn.cursor()
-        cur.execute("INSERT INTO data_sensor (suhu, humidity, lux, timestamp) VALUES (%s, %s, %s, %s)",
-                    (suhu, humidity, lux, waktu))
+        cur.execute(
+            "INSERT INTO data_sensor (suhu, humidity, lux, timestamp) VALUES (%s, %s, %s, %s)",
+            (suhu, humidity, lux, waktu)
+        )
         conn.commit()
         conn.close()
 
         print(f"💾 Data tersimpan ke MySQL: Suhu={suhu}, Humidity={humidity}, Lux={lux}, Timestamp={waktu}")
 
     except Exception as e:
-        print("⚠️ Error parsing/saving message:", e)
+        print("Error parsing/saving message:", e)
 
 # --------------------------------------------------------------
 # 4️⃣ JALANKAN MQTT CLIENT DALAM THREAD
@@ -92,7 +90,8 @@ def mqtt_thread():
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect("test.mosquitto.org", 1883, 60)
+    # Ganti broker ke broker.hivemq.com
+    client.connect("broker.hivemq.com", 1883, 60)
     client.loop_forever()
 
 mqtt_t = threading.Thread(target=mqtt_thread)
@@ -110,6 +109,9 @@ def home():
 def dashboard():
     return render_template('index.html')
 
+# ==============================================================
+# 6️⃣ API UNTUK DATA SENSOR (RAW JSON)
+# ==============================================================
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
     conn = mysql.connector.connect(**db_config)
@@ -125,31 +127,74 @@ def get_all_data():
             "suhu": row[1],
             "humidity": row[2],
             "lux": row[3],
-            "timestamp": row[4]
+            "timestamp": row[4].strftime("%Y-%m-%d %H:%M:%S") if isinstance(row[4], datetime) else str(row[4])
         })
-    return jsonify(data_list)
 
+    pretty_json = json.dumps(data_list, indent=2, ensure_ascii=False)
+    return Response(pretty_json, mimetype='application/json')
+
+# ==============================================================
+# 7️⃣ API UNTUK SUMMARY DATA SENSOR
+# ==============================================================
 @app.route('/api/summary', methods=['GET'])
 def get_summary():
     conn = mysql.connector.connect(**db_config)
     cur = conn.cursor()
-    cur.execute("SELECT MAX(suhu), MIN(suhu), AVG(suhu), MAX(humidity), MIN(humidity), AVG(humidity) FROM data_sensor")
+
+    cur.execute("""
+        SELECT 
+            MAX(suhu), MIN(suhu), AVG(suhu),
+            MAX(humidity), MIN(humidity), AVG(humidity)
+        FROM data_sensor
+    """)
     row = cur.fetchone()
+
+    cur.execute("""
+        SELECT id, suhu, humidity, lux, timestamp
+        FROM data_sensor
+        ORDER BY suhu DESC, humidity DESC
+        LIMIT 2
+    """)
+    top_rows = cur.fetchall()
+
+    cur.execute("""
+        SELECT DATE_FORMAT(MAX(timestamp), '%m-%Y') AS month_year
+        FROM data_sensor
+        GROUP BY DATE_FORMAT(timestamp, '%m-%Y')
+        ORDER BY MAX(timestamp) DESC
+        LIMIT 2
+    """)
+    month_rows = cur.fetchall()
+
     conn.close()
 
     summary = {
-        "suhu_max": round(row[0], 2) if row[0] else None,
-        "suhu_min": round(row[1], 2) if row[1] else None,
-        "suhu_avg": round(row[2], 2) if row[2] else None,
-        "humid_max": round(row[3], 2) if row[3] else None,
-        "humid_min": round(row[4], 2) if row[4] else None,
-        "humid_avg": round(row[5], 2) if row[5] else None
+        "suhumax": round(row[0], 2) if row[0] else None,
+        "suhumin": round(row[1], 2) if row[1] else None,
+        "suhurata": round(row[2], 2) if row[2] else None,
+        "humidmax": round(row[3], 2) if row[3] else None,
+        "humidmin": round(row[4], 2) if row[4] else None,
+        "humidrata": round(row[5], 2) if row[5] else None,
+        "nilai_suhu_max_humid_max": [
+            {
+                "idx": r[0],
+                "suhun": r[1],
+                "humid": r[2],
+                "kecerahan": r[3],
+                "timestamp": r[4].strftime("%Y-%m-%d %H:%M:%S") if isinstance(r[4], datetime) else str(r[4])
+            } for r in top_rows
+        ],
+        "month_year_max": [
+            {"month_year": m[0]} for m in month_rows
+        ]
     }
-    return jsonify(summary)
+
+    pretty_json = json.dumps(summary, indent=2, ensure_ascii=False)
+    return Response(pretty_json, mimetype='application/json')
 
 # --------------------------------------------------------------
-# 6️⃣ JALANKAN FLASK
+# 8️⃣ JALANKAN FLASK
 # --------------------------------------------------------------
 if __name__ == '__main__':
-    print("🚀 Flask server berjalan di http://localhost:5000")
+    print("Flask server berjalan di http://localhost:5000")
     app.run(host='0.0.0.0', port=5000)
